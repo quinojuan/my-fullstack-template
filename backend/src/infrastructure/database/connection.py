@@ -14,10 +14,18 @@ class DatabaseConfig:
     """Configuración centralizada de la base de datos"""
     # ✅ SOLO CAMBIO: Valores por defecto REALES para tu VPS
     HOST = os.getenv('DB_HOST', 'localhost')
-    DATABASE = os.getenv('DB_NAME', 'control_stock')  # ← NOMBRE REAL
+    DATABASE = os.getenv('DB_NAME', 'personas')  # ← NOMBRE REAL
     USER = os.getenv('DB_USER', 'root')   # ← USUARIO REAL  
-    PASSWORD = os.getenv('DB_PASSWORD', '')             # ← Vacío por defecto
+    PASSWORD = os.getenv('DB_PASSWORD', '123456')             # ← Vacío por defecto
     POOL_SIZE = 5
+    
+    @classmethod
+    def print_config(cls):
+        """Debug: muestra la configuración"""
+        logger.info(f"DB Config - Host: {cls.HOST}")
+        logger.info(f"DB Config - Database: {cls.DATABASE}")
+        logger.info(f"DB Config - User: {cls.USER}")
+        logger.info(f"DB Config - Password: {'[SET]' if cls.PASSWORD else '[EMPTY]'}")
 
 class Database:
     _instance = None
@@ -32,17 +40,40 @@ class Database:
     def _initialize_pool(self):
         """Inicializa el pool de conexiones"""
         try:
+            logger.info(f"Intentando conectar a MySQL con:")
+            logger.info(f"  Host: {DatabaseConfig.HOST}")
+            logger.info(f"  Database: {DatabaseConfig.DATABASE}")
+            logger.info(f"  User: {DatabaseConfig.USER}")
+            logger.info(f"  Password length: {len(DatabaseConfig.PASSWORD) if DatabaseConfig.PASSWORD else 0}")
+
             self._connection_pool = pooling.MySQLConnectionPool(
                 pool_name="stock_pool",
                 pool_size=DatabaseConfig.POOL_SIZE,
                 host=DatabaseConfig.HOST,
                 database=DatabaseConfig.DATABASE,
                 user=DatabaseConfig.USER,
-                password=DatabaseConfig.PASSWORD
+                password=DatabaseConfig.PASSWORD,
+                # Agrega estas opciones para debugging
+                autocommit=True,
+                connection_timeout=10
             )
             logger.info("✅ Pool de conexiones MySQL inicializado")
+
+            # Probar inmediatamente una conexión
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchall()
+                cursor.close()
+                logger.info("✅ Conexión de prueba exitosa")
+
         except Error as e:
-            logger.error(f"❌ Error inicializando pool: {e}")
+            logger.error(f"❌ Error crítico inicializando pool: {e}")
+            logger.error("Por favor verifica:")
+            logger.error("1. Credenciales en .env")
+            logger.error("2. Usuario tiene permisos en MySQL")
+            logger.error("3. MySQL está corriendo")
+            # No silencies el error, déjalo propagar
             raise
     
     @contextmanager
